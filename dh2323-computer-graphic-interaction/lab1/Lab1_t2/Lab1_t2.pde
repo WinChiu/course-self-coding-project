@@ -17,11 +17,11 @@ int SCREEN_WIDTH = 480;
 
 //void setup() {
 //  size(640, 480);
-//  FloatList result = new FloatList();
-//  Interpolate(5.0, 14.0, 10, result);
-//  for (int i = 0; i < result.size(); i++) {
-//    print(String.format("%.0f ", result.get(i)));
-//  }
+//FloatList result = new FloatList();
+//Interpolate(5.0, 14.0, 10, result);
+//for (int i = 0; i < result.size(); i++) {
+//  print(String.format("%.0f ", result.get(i)));
+//}
 //}
 
 //void draw() {
@@ -44,7 +44,7 @@ int SCREEN_WIDTH = 480;
 //  float dx = (b.x-a.x)/dCount;
 //  float dy = (b.y-a.y)/dCount;
 //  float dz = (b.z-a.z)/dCount;
-//  for (float i = 0.0; i < numResults; i++) {
+//  for (int i = 0; i < numResults; i++) {
 //    PVector tempPVector = new PVector(
 //      a.x + dx * i,
 //      a.y + dy * i,
@@ -72,8 +72,8 @@ int SCREEN_WIDTH = 480;
 //  background(0);
 //  for (int y = 0; y < SCREEN_WIDTH; y++) {
 //    for (int x = 0; x < SCREEN_HEIGHT; ++x) {
-//      color blue = color(183, 0, 255);
-//      set(x, y, blue);
+//      color pink = color(183, 0, 255);
+//      set(x, y, pink);
 //    }
 //  }
 //}
