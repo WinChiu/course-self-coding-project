@@ -1,9 +1,6 @@
 
 import java.util.ArrayList; // import the ArrayList class
 import java.util.Random;
-//Global variables for the screen height and width
-int SCREEN_HEIGHT = 640;
-int SCREEN_WIDTH = 480;
 
 
 //====== Task 3.1 ======//
@@ -121,11 +118,11 @@ void update() {
 
   for (int s = 0; s < stars.size(); s++) {
     PVector star = stars.get(s);
-    star.z = star.z + v*dt;
+    star.z = star.z - v*dt;
     if (star.z <= 0) {
       star.z +=1;
     }
-    if (star.z > 0) {
+    if (star.z > 1) {
       star.z -=1;
     }
   }
@@ -135,16 +132,18 @@ void update() {
 void draw() {
   update();
   background(0);
-
+  
   int f = H/2;
   PVector center = new PVector(W/2, H/2);
-  color white = color(255, 255, 255);
 
   // Project All Point to 2D
   for (int i = 0; i < stars.size(); i++) {
     PVector star = stars.get(i);
+    float bright = 0.2*255/pow(star.z, 2);
+    colorMode(HSB, 255);
+    color c = color(0, 0, bright);
     int u = round(f * (star.x/star.z) + center.x);
     int v = round(f * (star.y/star.z) + center.y);
-    set(u, v, white);
+    set(u, v, c);
   }
 }
