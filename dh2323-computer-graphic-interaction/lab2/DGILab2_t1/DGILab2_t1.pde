@@ -13,13 +13,14 @@ public static class Globals {
   static PVector cameraPosition = new PVector(0, 0, -3);
   static PVector lightPos = new PVector(0, -0.5, -0.7);
   static PVector lightColor = new PVector(1*14.f, 1*14.f, 1*14.f);
-  //static PVector indirectLight =
+  static PVector indirectLight = new PVector(1* 0.5f, 1* 0.5f, 1* 0.5f);
 
   //Movement
   static final float delta = 0.1;  //movement speed modifier for lights and camera
   static final float yaw = 0.05;
   static float cameraYaw = 0.0;
   static Matrix3x3 R = new Matrix3x3();
+  
 }
 
 void updateRotation(Matrix3x3 r, float yaw) {
@@ -42,13 +43,16 @@ public static class Intersection {
 }
 
 // Main function to find the closest intersection - see lab instructions
-public static boolean ClosestIntersection(PVector start, PVector dir, ArrayList<Triangle> triangles, Intersection closestIntersection) {
+public static boolean ClosestIntersection(PVector start, PVector dir, ArrayList<Triangle> triangles, Intersection closestIntersection, int ignoreTriangleIndex) {
   boolean intersected = false;
 
-  //your code here...
   for (int i = 0; i < triangles.size(); i++) {
+
+    if (i == ignoreTriangleIndex) {
+      continue;
+    }
+
     Triangle triangle = triangles.get(i);
-    //println(triangle.v0, triangle.v1, triangle.v2, i);
     PVector v0 = triangle.v0;
     PVector v1 = triangle.v1;
     PVector v2 = triangle.v2;
@@ -62,7 +66,6 @@ public static boolean ClosestIntersection(PVector start, PVector dir, ArrayList<
     PVector e2 = PVector.sub(v2, v0);
     PVector b  = PVector.sub(start, v0);
 
-    //TODO: initialise matrix values vals based on dir, e1 and e2
     float[][] vals = {
       { - dir.x, e1.x, e2.x},
       {  -dir.y, e1.y, e2.y},
@@ -71,12 +74,10 @@ public static boolean ClosestIntersection(PVector start, PVector dir, ArrayList<
 
     Matrix3x3 A = new Matrix3x3(vals);
 
-    //===
     float det = A.determinant();
     if (abs(det) < 1e-6) {
       continue;
     }
-    //===
 
     Matrix3x3 Ainv = A.inverse();
     PVector x = Ainv.multiply(b);
@@ -85,7 +86,10 @@ public static boolean ClosestIntersection(PVector start, PVector dir, ArrayList<
     float t = x.x;
     float u = x.y;
     float v = x.z;
-    if (t >=  0 && u >= 0 && v >= 0 && u + v <= 1) {
+    // Q: do not set t >= 0. When casting from the surface to the light source while generating the shadow,
+    // intersections with t ≈ 0 correspond to the surface itself (self-intersection), which causes shadow acne.
+    // Instead, require t > epsilon to ignore hits that are too close to the ray origin.
+    if (t >=  Globals.epsilon && u >= 0 && v >= 0 && u + v <= 1) {
       intersected = true;
       if (t < closestIntersection.distance) {
         // .set(start.add(dir.mult(t))) will also change the value of "start" and "dir", so don't do that.
@@ -103,24 +107,31 @@ public static boolean ClosestIntersection(PVector start, PVector dir, ArrayList<
 //see lab instructions
 PVector DirectLight(Intersection i)
 {
-  //your code here
+  // Check if it's in shadow
+  Intersection closestIntersection = new Intersection();
+  PVector rayDir = PVector.sub(Globals.lightPos, i.position);
+  rayDir.normalize();
+  boolean isInShadow = ClosestIntersection(i.position, rayDir, Globals.triangles, closestIntersection, i.triangleIndex);
+  if (isInShadow) {
+    float pointToIntersectionDistance = PVector.dist(closestIntersection.position, i.position);
+    float pointToLightDistance = PVector.dist(Globals.lightPos, i.position);
+    if (pointToIntersectionDistance < pointToLightDistance) {
+      return new PVector(0, 0, 0);
+    }
+  }
 
-  //public PVector position;
-  //public float distance;
-  //public int triangleIndex;
+  // IF not in shadow...
 
-
-  //1. get the triangle the intersection belongs to, and get the normal of the triangle.
-  PVector topLightVector = new PVector(0, -1, 0);
+  // Q: set the top light instead of round one
+  PVector lightDir = PVector.sub(Globals.lightPos, i.position);
+  lightDir.normalize();
   PVector norm = Globals.triangles.get(i.triangleIndex).normal;
-  float r = i.distance;
-  PVector D =   PVector.div(PVector.mult(Globals.lightColor, max(PVector.dot(topLightVector, norm), 0)), 4*Globals.PI*r*r);
+  float r = PVector.dist(Globals.lightPos, i.position);
+  PVector D = PVector.div(PVector.mult(Globals.lightColor, max(PVector.dot(lightDir, norm), 0)), 4*Globals.PI*r*r);
 
-  // test
-  println(PVector.dot(topLightVector, norm));
 
-  //return R;
-  return new PVector(0, 0, 0);
+  return D;
+  //return new PVector(0, 0, 0);
 }
 
 //THIS IS THE MAIN ENTRY POINT TO THE PROGRAM
@@ -144,27 +155,47 @@ void setup() {
 void draw() {
   background(0);
 
-  update();  //call the update function below - for now, this is just used to calculate how long a single frame take to render
+  update();
+  //call the update function below - for now, this is just used to calculate how long a single frame take to render
 
-  //// draw the whole screen, pixel by pixel
+  // draw the whole screen, pixel by pixel
   for (int y = 0; y < Globals.SCREEN_HEIGHT; ++y)
   {
     for (int x = 0; x < Globals.SCREEN_WIDTH; ++x)
     {
       PVector dir = new PVector(x-(Globals.SCREEN_WIDTH / 2), y-(Globals.SCREEN_HEIGHT / 2), Globals.focalLength);
       dir = Globals.R.multiply(dir);
+      dir.normalize();
       Intersection closestIntersection = new Intersection();
-      boolean isIntersected = ClosestIntersection(Globals.cameraPosition, dir, Globals.triangles, closestIntersection);
+      boolean isIntersected = ClosestIntersection(Globals.cameraPosition, dir, Globals.triangles, closestIntersection, -1);
+
       if (isIntersected) {
-        float colorX = Globals.triangles.get(closestIntersection.triangleIndex).col.x*255;
-        float colorY = Globals.triangles.get(closestIntersection.triangleIndex).col.y*255;
-        float colorZ = Globals.triangles.get(closestIntersection.triangleIndex).col.z*255;
-        color c = color(colorX, colorY, colorZ);
-        DirectLight(closestIntersection);
+        PVector triangleCol = Globals.triangles.get(closestIntersection.triangleIndex).col;
+        float colorX = triangleCol.x*255;
+        float colorY = triangleCol.y*255;
+        float colorZ = triangleCol.z*255;
+        PVector lightPower = DirectLight(closestIntersection);
+
+        // Deal with indirect light
+
+
+
+        //  color c = color(colorX, colorY, colorZ);
+        // color c = color(lightPower.x*255, lightPower.y*255, lightPower.z*255);
+
+        // p*D
+        //color c = color(lightPower.x*colorX, lightPower.y*colorY, lightPower.z*colorZ);
+
+        // p*(D+N)
+        color c = color((lightPower.x + Globals.indirectLight.x)*colorX, (lightPower.y + Globals.indirectLight.y)*colorY, (lightPower.z + Globals.indirectLight.z)*colorZ);
+        
+        
+
         set(x, y, c);
       }
     }
   }
+  
 }
 
 //updatePixels() {
@@ -192,10 +223,8 @@ void keyPressed() {
   case CODED:
     if (keyCode == UP) {
       Globals.cameraPosition.z += Globals.delta;
-      // Move camera forward
     } else if (keyCode == DOWN) {
       Globals.cameraPosition.z -= Globals.delta;
-      // Move camera backwards
     } else if (keyCode == LEFT) {
       Globals.cameraYaw -= Globals.yaw;
       updateRotation(Globals.R, Globals.cameraYaw);
@@ -205,22 +234,22 @@ void keyPressed() {
     }
     break;
   case 'w':
-
+    Globals.lightPos.z += Globals.delta;
     break;
   case 's':
-
+    Globals.lightPos.z -= Globals.delta;
     break;
   case 'a':
-
+    Globals.lightPos.x -= Globals.delta;
     break;
   case 'd':
-
+    Globals.lightPos.x += Globals.delta;
     break;
   case 'q':
-
+    Globals.lightPos.y -= Globals.delta;
     break;
   case 'e':
-
+    Globals.lightPos.y += Globals.delta;
     break;
   }
 }
